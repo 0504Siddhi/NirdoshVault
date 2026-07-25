@@ -110,34 +110,22 @@ Verification Report
 
 # Technology Stack
 
-## Frontend
-
--   React
--   TypeScript
--   Tailwind CSS
--   Vite
-
-## Backend
-
--   Node.js
--   Express
--   TypeScript
--   JWT
--   bcrypt
-
-## AI
-
--   Google Gemini 2.5 Flash
--   PaddleOCR (fallback)
-
-## Database
-
--   MongoDB
-
-## Deployment
-
--   Docker
--   Render
+| **Layer** | **Technology** |
+|------------|----------------|
+| **Frontend** | React · TypeScript · Vite · Tailwind CSS · React Router |
+| **Backend** | Node.js · Express.js · TypeScript · RESTful APIs |
+| **AI Model** | Google Gemini 2.5 Flash (Document Field Extraction & Natural Language Explanations) |
+| **OCR Engine** | PaddleOCR (Python) |
+| **Document Processing** | PDF & Image Processing · OCR Pipeline · Field Extraction · Data Normalization |
+| **Identity Verification Engine** | Consensus Identity Engine · Cross-Document Field Comparison · Deterministic Validation Logic |
+| **Correction Guidance Engine** | Rule-Based Correction Guidance · Authority Mapping · Evidence-Based Recommendations |
+| **Database** | MongoDB |
+| **Authentication** | JSON Web Tokens (JWT) · bcrypt |
+| **Security** | Helmet · CORS · Environment Variables |
+| **Logging & Monitoring** | Winston · Morgan |
+| **Deployment** | Vercel (Frontend) · Render (Backend) · Docker |
+| **Version Control** | Git · GitHub |
+| **Languages** | TypeScript · HTML · Python · CSS · JavaScript |
 
 ------------------------------------------------------------------------
 
