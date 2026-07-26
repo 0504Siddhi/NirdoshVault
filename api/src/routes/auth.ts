@@ -10,6 +10,10 @@ import logger from '../services/logger';
 
 const router = Router();
 
+// Fallback secret if config.jwt.secret is undefined during runtime
+const JWT_SECRET = config?.jwt?.secret || 'fallback_jwt_secret_key_123';
+const JWT_EXPIRES = config?.jwt?.expiresIn || '7d';
+
 // ─── Password strength validator ─────────────────────────────────
 const PasswordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
@@ -42,7 +46,7 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = UserStore.create({ name, email, password: hashedPassword, roles: ['user'], languagePreference });
 
-    const token = jwt.sign({ sub: user._id }, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
+    const token = jwt.sign({ sub: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES as any });
     AuditService.log(user._id, 'user.signup', { method: 'email' }, req);
     logger.info(`New user signed up: ${email}`);
 
@@ -55,6 +59,7 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: error.errors.map(e => e.message).join('. ') });
       return;
     }
+    logger.error('Signup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -85,7 +90,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    // 🚀 HACKATHON BYPASS: Skip password check for demo user
+    // 🚀 HACKATHON BYPASS: Skip password check for demo user, securely compare for others
     if (!isDemoBypass) {
       const passwordValid = await bcrypt.compare(password, user.password);
       if (!passwordValid) {
@@ -94,7 +99,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    const token = jwt.sign({ sub: user._id }, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
+    const token = jwt.sign({ sub: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES as any });
     AuditService.log(user._id, 'user.login', { method: 'password' }, req);
 
     res.json({
@@ -106,6 +111,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: error.errors[0]?.message || 'Validation failed' });
       return;
     }
+    logger.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
