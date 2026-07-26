@@ -80,13 +80,12 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       logger.info('Demo user automatically seeded on login attempt.');
     }
 
-    // If user still doesn't exist and it's not the bypass email, reject
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
 
-    // Validate password unless it's the hackathon demo bypass email
+    // 🚀 HACKATHON BYPASS: Skip password check for demo user
     if (!isDemoBypass) {
       const passwordValid = await bcrypt.compare(password, user.password);
       if (!passwordValid) {
@@ -182,15 +181,12 @@ router.delete('/me', authenticate, async (req: AuthRequest, res: Response): Prom
 
   const userId = req.user.id;
 
-  // Delete all user documents
   const docs = DocumentStore.findByUser(userId);
   for (const doc of docs) DocumentStore.delete(doc._id);
 
-  // Delete all analyses
   const analyses = AnalysisStore.findByUser(userId);
   for (const a of analyses) AnalysisStore.delete(a._id);
 
-  // Delete user
   UserStore.delete(userId);
 
   AuditService.log(userId, 'user.account_deleted', { documentCount: docs.length, analysisCount: analyses.length }, req);
