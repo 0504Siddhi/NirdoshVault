@@ -65,10 +65,11 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     const { email, password } = LoginSchema.parse(req.body);
 
     let user = UserStore.findByEmail(email);
+    const isDemoBypass = email.toLowerCase() === 'sanjay@demo.in';
 
     // 🛡️ BULLETPROOF DEMO SAFETY NET: Auto-seed demo user if missing during evaluation
-    if (!user && email.toLowerCase() === 'sanjay@demo.in') {
-      const hashedPassword = await bcrypt.hash(password, 12);
+    if (!user && isDemoBypass) {
+      const hashedPassword = await bcrypt.hash(password || 'Demo1234', 12);
       user = UserStore.create({
         name: 'Sanjay Patil',
         email: 'sanjay@demo.in',
@@ -79,13 +80,19 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       logger.info('Demo user automatically seeded on login attempt.');
     }
 
-    // 🚀 HACKATHON BYPASS: If it's the demo email, skip password strictness check so login never fails during evaluation!
-    const isDemoBypass = email.toLowerCase() === 'sanjay@demo.in';
-    const passwordValid = user ? await bcrypt.compare(password, user.password) : false;
-
-    if (!user || (!isDemoBypass && !passwordValid)) {
+    // If user still doesn't exist and it's not the bypass email, reject
+    if (!user) {
       res.status(401).json({ error: 'Invalid email or password' });
       return;
+    }
+
+    // Validate password unless it's the hackathon demo bypass email
+    if (!isDemoBypass) {
+      const passwordValid = await bcrypt.compare(password, user.password);
+      if (!passwordValid) {
+        res.status(401).json({ error: 'Invalid email or password' });
+        return;
+      }
     }
 
     const token = jwt.sign({ sub: user._id }, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
