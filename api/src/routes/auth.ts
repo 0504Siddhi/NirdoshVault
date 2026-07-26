@@ -10,10 +10,6 @@ import logger from '../services/logger';
 
 const router = Router();
 
-// Fallback secret if config.jwt.secret is undefined during runtime
-const JWT_SECRET = config?.jwt?.secret || 'fallback_jwt_secret_key_123';
-const JWT_EXPIRES = config?.jwt?.expiresIn || '7d';
-
 // ─── Password strength validator ─────────────────────────────────
 const PasswordSchema = z.string()
   .min(8, 'Password must be at least 8 characters')
@@ -46,7 +42,7 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
     const hashedPassword = await bcrypt.hash(password, 12);
     const user = UserStore.create({ name, email, password: hashedPassword, roles: ['user'], languagePreference });
 
-    const token = jwt.sign({ sub: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES as any });
+    const token = jwt.sign({ sub: user._id }, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
     AuditService.log(user._id, 'user.signup', { method: 'email' }, req);
     logger.info(`New user signed up: ${email}`);
 
@@ -59,7 +55,6 @@ router.post('/signup', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: error.errors.map(e => e.message).join('. ') });
       return;
     }
-    logger.error('Signup error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -70,11 +65,10 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
     const { email, password } = LoginSchema.parse(req.body);
 
     let user = UserStore.findByEmail(email);
-    const isDemoBypass = email.toLowerCase() === 'sanjay@demo.in';
 
     // 🛡️ BULLETPROOF DEMO SAFETY NET: Auto-seed demo user if missing during evaluation
-    if (!user && isDemoBypass) {
-      const hashedPassword = await bcrypt.hash(password || 'Demo1234', 12);
+    if (!user && email.toLowerCase() === 'sanjay@demo.in') {
+      const hashedPassword = await bcrypt.hash(password, 12);
       user = UserStore.create({
         name: 'Sanjay Patil',
         email: 'sanjay@demo.in',
@@ -85,21 +79,13 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       logger.info('Demo user automatically seeded on login attempt.');
     }
 
-    if (!user) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      // Use identical error message to prevent user enumeration
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
 
-    // 🚀 HACKATHON BYPASS: Skip password check for demo user, securely compare for others
-    if (!isDemoBypass) {
-      const passwordValid = await bcrypt.compare(password, user.password);
-      if (!passwordValid) {
-        res.status(401).json({ error: 'Invalid email or password' });
-        return;
-      }
-    }
-
-    const token = jwt.sign({ sub: user._id }, JWT_SECRET, { expiresIn: JWT_EXPIRES as any });
+    const token = jwt.sign({ sub: user._id }, config.jwt.secret, { expiresIn: config.jwt.expiresIn as any });
     AuditService.log(user._id, 'user.login', { method: 'password' }, req);
 
     res.json({
@@ -111,7 +97,6 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
       res.status(400).json({ error: error.errors[0]?.message || 'Validation failed' });
       return;
     }
-    logger.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -187,12 +172,15 @@ router.delete('/me', authenticate, async (req: AuthRequest, res: Response): Prom
 
   const userId = req.user.id;
 
+  // Delete all user documents
   const docs = DocumentStore.findByUser(userId);
   for (const doc of docs) DocumentStore.delete(doc._id);
 
+  // Delete all analyses
   const analyses = AnalysisStore.findByUser(userId);
   for (const a of analyses) AnalysisStore.delete(a._id);
 
+  // Delete user
   UserStore.delete(userId);
 
   AuditService.log(userId, 'user.account_deleted', { documentCount: docs.length, analysisCount: analyses.length }, req);
